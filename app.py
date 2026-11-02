@@ -348,14 +348,14 @@ if st.sidebar.button("Save Current Audit to Archive"):
     st.sidebar.success(f"Archived '{run_label}'!")
 
 st.sidebar.caption(f"Active Sample: {len(df):,} records")
-st.sidebar.caption("Equimeritization Framework v1.0\nUTSA Educational Leadership & Policy Studies\nDeveloped by Steven Westgreen")
+st.sidebar.caption("Equimeritization Framework v1.0\nUTSA Educational Leadership & Policy Studies\nDeveloped by Steve Westgreen")
 
 
 # ==========================================
 # DASHBOARD HEADER & EXECUTIVE KPIS
 # ==========================================
-st.markdown('<div class="main-header">Equimeritization Index ($EI$) Executive Suite</div>', unsafe_allow_html=True)
-st.markdown(f'<div class="sub-header">Auditing Algorithmic Power and Disparate Error Rates | Developer: Steven Westgreen | Active Sample: {len(df):,} Records</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-header">Equimeritization Index (EI) Executive Suite</div>', unsafe_allow_html=True)
+st.markdown(f'<div class="sub-header">Auditing Algorithmic Power and Disparate Error Rates | Developer: Steve Westgreen | Active Sample: {len(df):,} Records</div>', unsafe_allow_html=True)
 
 col1, col2, col3, col4 = st.columns(4)
 
@@ -403,7 +403,7 @@ with tab_main:
             'Equimeritization Calibrated Model': [m2_P, m2_B, m2_EI]
         })
         fig_bar = px.bar(comp_df, x='Metric', y=['Vendor Proprietary Model', 'Equimeritization Calibrated Model'], barmode='group', color_discrete_sequence=['#DC2626', '#059669'])
-        fig_bar.add_hline(y=refusal_threshold, line_dash="dash", line_color="#D97706", annotation_text="Minimum EI Threshold")
+        fig_bar.add_hline(y=refusal_threshold, line_dash="dash", line_color="#000000", annotation_text="Minimum EI Threshold", annotation_font_color="#000000")
         fig_bar.update_layout(template="plotly_white", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
         st.plotly_chart(fig_bar, use_container_width=True)
         
@@ -429,7 +429,7 @@ with tab_main:
     report_text = f"""================================================================================
 EQUIMERITIZATION INDEX (EI) EXECUTIVE AUDIT MEMORANDUM
 ================================================================================
-Author / Lead Developer: Steven Westgreen
+Author / Lead Developer: Steve Westgreen
 Institutional Context: UTSA Educational Leadership & Policy Studies
 Audit Timestamp: {pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")}
 Sample Size Analyzed: {len(df):,} student records
@@ -645,7 +645,7 @@ with tab_gov:
 # ------------------------------------------
 with tab_guide:
     st.subheader("📖 Equimeritization Index ($EI$) Suite - Official User & Technical Operations Guide")
-    st.markdown("##### Developed by Steven Westgreen | UTSA Educational Leadership & Policy Studies")
+    st.markdown("##### Developed by Steve Westgreen | UTSA Educational Leadership & Policy Studies")
     st.divider()
     
     st.markdown("""

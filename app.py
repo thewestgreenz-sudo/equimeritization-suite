@@ -340,126 +340,247 @@ st.divider()
 
 
 # ==========================================
-# COMPARATIVE VENDOR AUDIT MODULE
+# VENDOR AUDIT UI RENDER FUNCTION (SINGLE + COMPARATIVE MODES)
 # ==========================================
 def render_vendor_audit_section():
-    st.subheader("📦 Comparative Third-Party Vendor Equity Benchmarking")
-    st.markdown("Upload two distinct vendor test CSV files to evaluate and compare predictive accuracy, FNR disparity gaps, and Equimeritization scores side-by-side.")
+    """
+    Streamlit UI component for third-party vendor equity auditing, supporting both:
+    1. Single Vendor Audit Mode
+    2. Side-by-Side Comparative Benchmarking Mode (Vendor A vs. Vendor B)
+    """
+    st.subheader("📦 Third-Party Vendor Equity Audit Suite")
+    st.markdown("Evaluate vendor model risk predictions against ground truth student persistence outcomes for error disparities, penalty scoring, and compliance verification.")
     
-    col_up1, col_up2 = st.columns(2)
-    with col_up1:
-        file_a = st.file_uploader("Upload Vendor A (Incumbent Model) CSV", type=["csv"], key="vendor_a_uploader")
-    with col_up2:
-        file_b = st.file_uploader("Upload Vendor B (Challenger Model) CSV", type=["csv"], key="vendor_b_uploader")
-    
-    if file_a is not None and file_b is not None:
-        df_a = pd.read_csv(file_a)
-        df_b = pd.read_csv(file_b)
-        
-        st.success(f"Successfully loaded datasets — Vendor A: {len(df_a):,} records | Vendor B: {len(df_b):,} records.")
-        
-        with st.expander("Preview Vendor Datasets"):
-            tab_pa, tab_pb = st.tabs(["Vendor A Preview", "Vendor B Preview"])
-            with tab_pa:
-                st.dataframe(df_a.head(), use_container_width=True)
-            with tab_pb:
-                st.dataframe(df_b.head(), use_container_width=True)
-                
-        st.markdown("### Configuration & Column Mapping")
-        col_cfg1, col_cfg2, col_cfg3 = st.columns(3)
-        with col_cfg1:
-            act_col = st.selectbox("Ground Truth Column (Actual Outcome)", df_a.columns, key="bench_act_col")
-        with col_cfg2:
-            default_groups = [col for col in ['Intersectional_Cohort', 'First_Gen', 'Pell_Recipient', 'URM_Status'] if col in df_a.columns]
-            group_cols = st.multiselect("Demographic Pillars for Disparity Check", df_a.columns, default=default_groups, key="bench_group_cols")
-        with col_cfg3:
-            model_a_name = st.text_input("Vendor A Label", value="Incumbent Vendor Model")
-            model_b_name = st.text_input("Vendor B Label", value="Challenger AI Model")
-            
-        col_pred1, col_pred2 = st.columns(2)
-        with col_pred1:
-            pred_col_a = st.selectbox(f"{model_a_name} Prediction Column", df_a.columns, key="pred_a_col")
-        with col_pred2:
-            pred_col_b = st.selectbox(f"{model_b_name} Prediction Column", df_b.columns, key="pred_b_col")
-            
-        if st.button("Run Comparative Vendor Benchmark Audit", type="primary"):
-            if not group_cols:
-                st.error("Please select at least one demographic pillar for auditing.")
-            else:
-                with st.spinner("Executing comparative disparity audits..."):
-                    results_a = calculate_disparity_penalty(df_a, pred_col_a, act_col, group_cols)
-                    results_b = calculate_disparity_penalty(df_b, pred_col_b, act_col, group_cols)
-                    
-                st.divider()
-                st.markdown("### ⚖️ Side-by-Side Compliance Scorecard")
-                
-                is_compliant_a = results_a['max_fnr_gap'] <= 0.15 and results_a['final_ei_score'] >= 0.65
-                is_compliant_b = results_b['max_fnr_gap'] <= 0.15 and results_b['final_ei_score'] >= 0.65
-                
-                col_res1, col_res2 = st.columns(2)
-                with col_res1:
-                    st.markdown(f"#### 🏛️ {model_a_name}")
-                    if is_compliant_a: st.success("🟢 **STATUS: PASSED**")
-                    else: st.error("🔴 **STATUS: FLAGGED / FAILED**")
-                    st.metric("Raw Overall Accuracy", f"{results_a['overall_accuracy']:.2%}")
-                    st.metric("Max Disparity Gap (FNR)", f"{results_a['max_fnr_gap']:.2%}")
-                    st.metric("Final EI Score", f"{results_a['final_ei_score']:.2%}", delta=f"-{results_a['equity_penalty']:.2%}", delta_color="inverse")
-                    
-                with col_res2:
-                    st.markdown(f"#### 🚀 {model_b_name}")
-                    if is_compliant_b: st.success("🟢 **STATUS: PASSED**")
-                    else: st.error("🔴 **STATUS: FLAGGED / FAILED**")
-                    st.metric("Raw Overall Accuracy", f"{results_b['overall_accuracy']:.2%}", delta=f"{(results_b['overall_accuracy'] - results_a['overall_accuracy']):+.2%}")
-                    st.metric("Max Disparity Gap (FNR)", f"{results_b['max_fnr_gap']:.2%}", delta=f"{(results_b['max_fnr_gap'] - results_a['max_fnr_gap']):+.2%}", delta_color="inverse")
-                    st.metric("Final EI Score", f"{results_b['final_ei_score']:.2%}", delta=f"{(results_b['final_ei_score'] - results_a['final_ei_score']):+.2%}")
+    # Audit Mode Selection Toggle
+    audit_mode = st.radio(
+        "Select Audit Workflow Mode:",
+        ["Single Vendor Audit", "Comparative Benchmark (2 Vendors)"],
+        horizontal=True,
+        key="vendor_audit_mode_selector"
+    )
+    st.divider()
 
-                st.divider()
-                st.markdown("### 🏆 Institutional Procurement Recommendation")
-                if is_compliant_a and not is_compliant_b:
-                    recommended_winner = model_a_name
-                    rationale = f"{model_a_name} is the sole compliant model meeting institutional equity thresholds."
-                elif is_compliant_b and not is_compliant_a:
-                    recommended_winner = model_b_name
-                    rationale = f"{model_b_name} is the sole compliant model meeting institutional equity thresholds."
+    # ==========================================
+    # MODE 1: SINGLE VENDOR AUDIT WORKFLOW
+    # ==========================================
+    if audit_mode == "Single Vendor Audit":
+        uploaded_file = st.file_uploader("Upload Vendor Test CSV File", type=["csv"], key="single_vendor_uploader")
+        
+        if uploaded_file is not None:
+            df_vendor = pd.read_csv(uploaded_file)
+            st.success(f"Successfully loaded dataset with {len(df_vendor):,} records.")
+            
+            with st.expander("Preview Uploaded Vendor Dataset"):
+                st.dataframe(df_vendor.head(), use_container_width=True)
+                
+            st.markdown("### Configuration & Column Mapping")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                pred_col = st.selectbox("Vendor Prediction Column", df_vendor.columns, key="single_pred_col")
+            with col2:
+                act_col = st.selectbox("Actual Outcome Column (Ground Truth)", df_vendor.columns, key="single_act_col")
+            with col3:
+                default_groups = [c for c in ['Intersectional_Cohort', 'First_Gen', 'Pell_Recipient', 'URM_Status'] if c in df_vendor.columns]
+                group_cols = st.multiselect("Demographic Pillars for Disparity Check", df_vendor.columns, default=default_groups, key="single_group_cols")
+                
+            if st.button("Run Single Vendor Audit", type="primary"):
+                if not group_cols:
+                    st.error("Please select at least one demographic pillar for auditing.")
                 else:
-                    recommended_winner = model_a_name if results_a['final_ei_score'] >= results_b['final_ei_score'] else model_b_name
-                    rationale = f"Both models share similar compliance standing; {recommended_winner} achieves a superior penalization-adjusted Equimeritization Index score."
+                    with st.spinner("Calculating error rates and equity penalties..."):
+                        audit_results = calculate_disparity_penalty(df_vendor, pred_col, act_col, group_cols)
+                        
+                    st.divider()
+                    st.markdown("### Vendor Audit Scorecard")
+                    
+                    is_compliant = audit_results['max_fnr_gap'] <= 0.15 and audit_results['final_ei_score'] >= 0.65
+                    if is_compliant:
+                        st.success("🟢 **INSTITUTIONAL COMPLIANCE STATUS: PASSED** — Vendor model meets equity thresholds.")
+                    else:
+                        st.error("🔴 **INSTITUTIONAL COMPLIANCE STATUS: FAILED / FLAGGED** — Excessive disparate error rates detected.")
+                    
+                    m1, m2, m3 = st.columns(3)
+                    m1.metric("Raw Overall Accuracy", f"{audit_results['overall_accuracy']:.2%}")
+                    m2.metric("Max Disparity Gap (FNR)", f"{audit_results['max_fnr_gap']:.2%}")
+                    m3.metric("Final EI Score (Post-Penalty)", f"{audit_results['final_ei_score']:.2%}", delta=f"-{audit_results['equity_penalty']:.2%}", delta_color="inverse")
+                    
+                    st.divider()
+                    st.markdown("### 🔍 Demographic Subgroup Disparity Table")
+                    selected_pillar = st.selectbox("Select Demographic Pillar to Inspect", group_cols, key="single_drilldown_pillar")
+                    
+                    pillar_stats = audit_results['subgroup_breakdown'].get(selected_pillar, {})
+                    pillar_rows, chart_data = [], []
+                    for grp_val, metrics in pillar_stats.items():
+                        pillar_rows.append({
+                            'Subgroup': f"{selected_pillar}: {grp_val}",
+                            'Sample Size': metrics['sample_size'],
+                            'Accuracy': f"{metrics['accuracy']:.2%}",
+                            'False Negative Rate (FNR)': f"{metrics['false_negative_rate']:.2%}"
+                        })
+                        chart_data.append({'Subgroup': str(grp_val), 'False Negative Rate': metrics['false_negative_rate']})
+                    
+                    st.dataframe(pd.DataFrame(pillar_rows), use_container_width=True)
+                    
+                    df_chart = pd.DataFrame(chart_data)
+                    if not df_chart.empty:
+                        fig_fnr = px.bar(df_chart, x='Subgroup', y='False Negative Rate', text_auto='.1%', color='False Negative Rate', color_continuous_scale='Reds')
+                        fig_fnr.update_layout(template="plotly_white", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', yaxis_tickformat='.0%', xaxis_tickangle=-20, showlegend=False)
+                        st.plotly_chart(fig_fnr, use_container_width=True)
+                        
+                    st.divider()
+                    st.markdown("### 🖨️ Export Audit Deliverables")
+                    col_exp1, col_exp2 = st.columns(2)
+                    
+                    with col_exp1:
+                        summary_df = pd.DataFrame({
+                            'Metric': ['Overall Accuracy', 'Max FNR Disparity Gap', 'Equity Penalty Applied', 'Final EI Score', 'Compliance Status'],
+                            'Value': [f"{audit_results['overall_accuracy']:.4f}", f"{audit_results['max_fnr_gap']:.4f}", f"{audit_results['equity_penalty']:.4f}", f"{audit_results['final_ei_score']:.4f}", "PASSED" if is_compliant else "FAILED"]
+                        })
+                        st.download_button("📊 Download Scorecard (CSV)", summary_df.to_csv(index=False).encode('utf-8'), "single_vendor_audit_scorecard.csv", "text/csv")
+                        
+                    with col_exp2:
+                        memo_text = f"""================================================================================
+SINGLE VENDOR ALGORITHMIC EQUITY AUDIT MEMORANDUM
+================================================================================
+Author / Lead Developer: Steven Westgreen
+Institutional Context: UTSA Educational Leadership & Policy Studies
+Audit Timestamp: {pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")}
+Total Records Evaluated: {len(df_vendor):,} student records
 
-                st.info(f"💡 **Recommended Procurement Selection:** **{recommended_winner}**\n\n*Rationale:* {rationale}")
+COMPLIANCE VERDICT:
+--------------------------------------------------------------------------------
+Institutional Status: {"APPROVED / COMPLIANT" if is_compliant else "FLAGGED / CONTRACT VETO RECOMMENDED"}
 
-                st.divider()
-                st.markdown("### 📊 Comparative False Negative Rate (FNR) Disparity")
-                selected_pillar = st.selectbox("Select Pillar for Visual Comparison", group_cols, key="comp_drilldown_pillar")
-                
-                stats_a = results_a['subgroup_breakdown'].get(selected_pillar, {})
-                stats_b = results_b['subgroup_breakdown'].get(selected_pillar, {})
-                
-                chart_rows = []
-                for grp, m_data in stats_a.items():
-                    chart_rows.append({'Subgroup': str(grp), 'False Negative Rate': m_data['false_negative_rate'], 'Vendor Model': model_a_name})
-                for grp, m_data in stats_b.items():
-                    chart_rows.append({'Subgroup': str(grp), 'False Negative Rate': m_data['false_negative_rate'], 'Vendor Model': model_b_name})
+AUDIT METRICS SUMMARY:
+--------------------------------------------------------------------------------
+- Raw Vendor Predictive Accuracy: {audit_results['overall_accuracy']:.2%}
+- Maximum False Negative Rate (FNR) Disparity Gap: {audit_results['max_fnr_gap']:.2%}
+- Applied Equity Penalty: -{audit_results['equity_penalty']:.2%}
+- Final Penalized Equimeritization Score (EI): {audit_results['final_ei_score']:.2%}
+
+EVALUATED DEMOGRAPHIC PILLARS: {", ".join(group_cols)}
+================================================================================
+"""
+                        st.download_button("📄 Download Audit Memo (TXT)", memo_text, "Single_Vendor_Audit_Memo.txt", "text/plain")
+        else:
+            st.info("Awaiting CSV file upload for single vendor audit.")
+
+    # ==========================================
+    # MODE 2: COMPARATIVE BENCHMARKING WORKFLOW
+    # ==========================================
+    else:
+        col_up1, col_up2 = st.columns(2)
+        with col_up1:
+            file_a = st.file_uploader("Upload Vendor A (Incumbent Model) CSV", type=["csv"], key="vendor_a_uploader")
+        with col_up2:
+            file_b = st.file_uploader("Upload Vendor B (Challenger Model) CSV", type=["csv"], key="vendor_b_uploader")
+        
+        if file_a is not None and file_b is not None:
+            df_a = pd.read_csv(file_a)
+            df_b = pd.read_csv(file_b)
+            
+            st.success(f"Loaded datasets — Vendor A: {len(df_a):,} records | Vendor B: {len(df_b):,} records.")
+            
+            with st.expander("Preview Vendor Datasets"):
+                tab_pa, tab_pb = st.tabs(["Vendor A Preview", "Vendor B Preview"])
+                with tab_pa: st.dataframe(df_a.head(), use_container_width=True)
+                with tab_pb: st.dataframe(df_b.head(), use_container_width=True)
                     
-                df_comp_chart = pd.DataFrame(chart_rows)
-                if not df_comp_chart.empty:
-                    fig_comp = px.bar(df_comp_chart, x='Subgroup', y='False Negative Rate', color='Vendor Model', barmode='group', color_discrete_sequence=['#DC2626', '#2563EB'])
-                    fig_comp.update_layout(template="plotly_white", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', yaxis_tickformat='.0%', xaxis_tickangle=-20)
-                    st.plotly_chart(fig_comp, use_container_width=True)
-                    
-                st.divider()
-                st.markdown("### 🖨️ Export Board-Ready Deliverables")
-                col_exp1, col_exp2, col_exp3 = st.columns(3)
+            st.markdown("### Configuration & Column Mapping")
+            col_cfg1, col_cfg2, col_cfg3 = st.columns(3)
+            with col_cfg1:
+                act_col = st.selectbox("Ground Truth Column (Actual Outcome)", df_a.columns, key="bench_act_col")
+            with col_cfg2:
+                default_groups = [c for c in ['Intersectional_Cohort', 'First_Gen', 'Pell_Recipient', 'URM_Status'] if c in df_a.columns]
+                group_cols = st.multiselect("Demographic Pillars for Disparity Check", df_a.columns, default=default_groups, key="bench_group_cols")
+            with col_cfg3:
+                model_a_name = st.text_input("Vendor A Label", value="Incumbent Vendor Model")
+                model_b_name = st.text_input("Vendor B Label", value="Challenger AI Model")
                 
-                with col_exp1:
-                    comparison_summary_df = pd.DataFrame({
-                        'Metric': ['Overall Accuracy', 'Max FNR Disparity Gap', 'Equity Penalty Applied', 'Final EI Score', 'Compliance Status'],
-                        model_a_name: [f"{results_a['overall_accuracy']:.4f}", f"{results_a['max_fnr_gap']:.4f}", f"{results_a['equity_penalty']:.4f}", f"{results_a['final_ei_score']:.4f}", "PASSED" if is_compliant_a else "FAILED"],
-                        model_b_name: [f"{results_b['overall_accuracy']:.4f}", f"{results_b['max_fnr_gap']:.4f}", f"{results_b['equity_penalty']:.4f}", f"{results_b['final_ei_score']:.4f}", "PASSED" if is_compliant_b else "FAILED"]
-                    })
-                    st.download_button("📊 Download Scorecard (CSV)", comparison_summary_df.to_csv(index=False).encode('utf-8'), "vendor_comparative_benchmark_scorecard.csv", "text/csv")
+            col_pred1, col_pred2 = st.columns(2)
+            with col_pred1:
+                pred_col_a = st.selectbox(f"{model_a_name} Prediction Column", df_a.columns, key="pred_a_col")
+            with col_pred2:
+                pred_col_b = st.selectbox(f"{model_b_name} Prediction Column", df_b.columns, key="pred_b_col")
+                
+            if st.button("Run Comparative Vendor Benchmark Audit", type="primary"):
+                if not group_cols:
+                    st.error("Please select at least one demographic pillar for auditing.")
+                else:
+                    with st.spinner("Executing comparative disparity audits..."):
+                        results_a = calculate_disparity_penalty(df_a, pred_col_a, act_col, group_cols)
+                        results_b = calculate_disparity_penalty(df_b, pred_col_b, act_col, group_cols)
+                        
+                    st.divider()
+                    st.markdown("### ⚖️ Side-by-Side Compliance Scorecard")
                     
-                with col_exp2:
-                    comp_memo_text = f"""================================================================================
+                    is_compliant_a = results_a['max_fnr_gap'] <= 0.15 and results_a['final_ei_score'] >= 0.65
+                    is_compliant_b = results_b['max_fnr_gap'] <= 0.15 and results_b['final_ei_score'] >= 0.65
+                    
+                    col_res1, col_res2 = st.columns(2)
+                    with col_res1:
+                        st.markdown(f"#### 🏛️ {model_a_name}")
+                        if is_compliant_a: st.success("🟢 **STATUS: PASSED**")
+                        else: st.error("🔴 **STATUS: FLAGGED / FAILED**")
+                        st.metric("Raw Overall Accuracy", f"{results_a['overall_accuracy']:.2%}")
+                        st.metric("Max Disparity Gap (FNR)", f"{results_a['max_fnr_gap']:.2%}")
+                        st.metric("Final EI Score", f"{results_a['final_ei_score']:.2%}", delta=f"-{results_a['equity_penalty']:.2%}", delta_color="inverse")
+                        
+                    with col_res2:
+                        st.markdown(f"#### 🚀 {model_b_name}")
+                        if is_compliant_b: st.success("🟢 **STATUS: PASSED**")
+                        else: st.error("🔴 **STATUS: FLAGGED / FAILED**")
+                        st.metric("Raw Overall Accuracy", f"{results_b['overall_accuracy']:.2%}", delta=f"{(results_b['overall_accuracy'] - results_a['overall_accuracy']):+.2%}")
+                        st.metric("Max Disparity Gap (FNR)", f"{results_b['max_fnr_gap']:.2%}", delta=f"{(results_b['max_fnr_gap'] - results_a['max_fnr_gap']):+.2%}", delta_color="inverse")
+                        st.metric("Final EI Score", f"{results_b['final_ei_score']:.2%}", delta=f"{(results_b['final_ei_score'] - results_a['final_ei_score']):+.2%}")
+
+                    st.divider()
+                    st.markdown("### 🏆 Institutional Procurement Recommendation")
+                    if is_compliant_a and not is_compliant_b:
+                        recommended_winner = model_a_name
+                        rationale = f"{model_a_name} is the sole compliant model meeting equity thresholds."
+                    elif is_compliant_b and not is_compliant_a:
+                        recommended_winner = model_b_name
+                        rationale = f"{model_b_name} is the sole compliant model meeting equity thresholds."
+                    else:
+                        recommended_winner = model_a_name if results_a['final_ei_score'] >= results_b['final_ei_score'] else model_b_name
+                        rationale = f"Both models share similar compliance standing; {recommended_winner} achieves a superior penalization-adjusted EI score."
+
+                    st.info(f"💡 **Recommended Selection:** **{recommended_winner}**\n\n*Rationale:* {rationale}")
+
+                    st.divider()
+                    st.markdown("### 📊 Comparative False Negative Rate (FNR) Disparity")
+                    selected_pillar = st.selectbox("Select Pillar for Visual Comparison", group_cols, key="comp_drilldown_pillar")
+                    
+                    stats_a = results_a['subgroup_breakdown'].get(selected_pillar, {})
+                    stats_b = results_b['subgroup_breakdown'].get(selected_pillar, {})
+                    
+                    chart_rows = []
+                    for grp, m_data in stats_a.items():
+                        chart_rows.append({'Subgroup': str(grp), 'False Negative Rate': m_data['false_negative_rate'], 'Vendor Model': model_a_name})
+                    for grp, m_data in stats_b.items():
+                        chart_rows.append({'Subgroup': str(grp), 'False Negative Rate': m_data['false_negative_rate'], 'Vendor Model': model_b_name})
+                        
+                    df_comp_chart = pd.DataFrame(chart_rows)
+                    if not df_comp_chart.empty:
+                        fig_comp = px.bar(df_comp_chart, x='Subgroup', y='False Negative Rate', color='Vendor Model', barmode='group', color_discrete_sequence=['#DC2626', '#2563EB'])
+                        fig_comp.update_layout(template="plotly_white", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', yaxis_tickformat='.0%', xaxis_tickangle=-20)
+                        st.plotly_chart(fig_comp, use_container_width=True)
+                        
+                    st.divider()
+                    st.markdown("### 🖨️ Export Board-Ready Deliverables")
+                    col_exp1, col_exp2, col_exp3 = st.columns(3)
+                    
+                    with col_exp1:
+                        comp_summary_df = pd.DataFrame({
+                            'Metric': ['Overall Accuracy', 'Max FNR Disparity Gap', 'Equity Penalty Applied', 'Final EI Score', 'Compliance Status'],
+                            model_a_name: [f"{results_a['overall_accuracy']:.4f}", f"{results_a['max_fnr_gap']:.4f}", f"{results_a['equity_penalty']:.4f}", f"{results_a['final_ei_score']:.4f}", "PASSED" if is_compliant_a else "FAILED"],
+                            model_b_name: [f"{results_b['overall_accuracy']:.4f}", f"{results_b['max_fnr_gap']:.4f}", f"{results_b['equity_penalty']:.4f}", f"{results_b['final_ei_score']:.4f}", "PASSED" if is_compliant_b else "FAILED"]
+                        })
+                        st.download_button("📊 Download Scorecard (CSV)", comp_summary_df.to_csv(index=False).encode('utf-8'), "vendor_comparative_benchmark_scorecard.csv", "text/csv")
+                        
+                    with col_exp2:
+                        comp_memo_text = f"""================================================================================
 THE UNIVERSITY OF TEXAS AT SAN ANTONIO (UTSA)
 DEPARTMENT OF EDUCATIONAL LEADERSHIP AND POLICY STUDIES (ELPS)
 EQUIMERITIZATION INDEX (EI) — EXECUTIVE GOVERNANCE & PROCUREMENT BRIEF
@@ -483,60 +604,58 @@ Final Penalized EI Score     | {results_a['final_ei_score']:.2%}               |
 Institutional Status         | {"PASSED" if is_compliant_a else "FAILED"}              | {"PASSED" if is_compliant_b else "FAILED"}              
 --------------------------------------------------------------------------------
 """
-                    st.download_button("📄 Download Text Memo (TXT)", comp_memo_text, "Comparative_Vendor_Policy_Memo.txt", "text/plain")
+                        st.download_button("📄 Download Text Memo (TXT)", comp_memo_text, "Comparative_Vendor_Policy_Memo.txt", "text/plain")
 
-                with col_exp3:
-                    def generate_pdf_memo():
-                        buffer = io.BytesIO()
-                        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
-                        story = []
-                        styles = getSampleStyleSheet()
-                        title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=11, textColor=colors.HexColor('#1E3A8A'), alignment=1, spaceAfter=4)
-                        subtitle_style = ParagraphStyle('SubTitleStyle', parent=styles['Normal'], fontSize=7.5, textColor=colors.HexColor('#475569'), alignment=1, spaceAfter=8)
-                        heading_style = ParagraphStyle('HeadingStyle', parent=styles['Heading2'], fontSize=9.5, textColor=colors.HexColor('#1E3A8A'), spaceBefore=8, spaceAfter=3)
-                        body_style = ParagraphStyle('BodyStyle', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor('#0F172A'), spaceAfter=4)
-                        
-                        story.append(Paragraph("THE UNIVERSITY OF TEXAS AT SAN ANTONIO (UTSA)", title_style))
-                        story.append(Paragraph("DEPARTMENT OF EDUCATIONAL LEADERSHIP AND POLICY STUDIES (ELPS)<br/><b>Equimeritization Index (EI) — Executive Governance & Procurement Brief</b>", subtitle_style))
-                        story.append(Spacer(1, 4))
-                        
-                        story.append(Paragraph("1. Bottom-Line-Up-Front (BLUF) Executive Recommendation", heading_style))
-                        story.append(Paragraph(f"<b>Recommended Vendor Selection:</b> {recommended_winner}<br/><b>Strategic Rationale:</b> {rationale}", body_style))
-                        
-                        story.append(Paragraph("2. Comparative Benchmarking Scorecard", heading_style))
-                        table_data = [
-                            ['Metric Description', model_a_name[:18], model_b_name[:18]],
-                            ['Raw Overall Accuracy', f"{results_a['overall_accuracy']:.2%}", f"{results_b['overall_accuracy']:.2%}"],
-                            ['Max FNR Disparity Gap (B)', f"{results_a['max_fnr_gap']:.2%}", f"{results_b['max_fnr_gap']:.2%}"],
-                            ['Equity Penalty Applied', f"-{results_a['equity_penalty']:.2%}", f"-{results_b['equity_penalty']:.2%}"],
-                            ['Final Penalized EI Score', f"{results_a['final_ei_score']:.2%}", f"{results_b['final_ei_score']:.2%}"],
-                            ['Institutional Status', "PASSED" if is_compliant_a else "FAILED", "PASSED" if is_compliant_b else "FAILED"]
-                        ]
-                        t = Table(table_data, colWidths=[180, 175, 175])
-                        t.setStyle(TableStyle([
-                            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1E3A8A')),
-                            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-                            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-                            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-                            ('FONTSIZE', (0,0), (-1,-1), 8),
-                            ('BOTTOMPADDING', (0,0), (-1,0), 3),
-                            ('BACKGROUND', (0,1), (-1,-1), colors.HexColor('#F8FAFC')),
-                            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1'))
-                        ]))
-                        story.append(t)
-                        story.append(Spacer(1, 4))
-                        story.append(Paragraph("3. Governance Implications & Next Steps", heading_style))
-                        story.append(Paragraph("Comparative analysis proves raw accuracy obscures error-rate disparities across marginalized cohorts. Procurement committees must condition contracts on maintaining EI scores above institutional thresholds.", body_style))
-                        
-                        doc.build(story)
-                        buffer.seek(0)
-                        return buffer
+                    with col_exp3:
+                        def generate_pdf_memo():
+                            buffer = io.BytesIO()
+                            doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+                            story = []
+                            styles = getSampleStyleSheet()
+                            title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=11, textColor=colors.HexColor('#1E3A8A'), alignment=1, spaceAfter=4)
+                            subtitle_style = ParagraphStyle('SubTitleStyle', parent=styles['Normal'], fontSize=7.5, textColor=colors.HexColor('#475569'), alignment=1, spaceAfter=8)
+                            heading_style = ParagraphStyle('HeadingStyle', parent=styles['Heading2'], fontSize=9.5, textColor=colors.HexColor('#1E3A8A'), spaceBefore=8, spaceAfter=3)
+                            body_style = ParagraphStyle('BodyStyle', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor('#0F172A'), spaceAfter=4)
+                            
+                            story.append(Paragraph("THE UNIVERSITY OF TEXAS AT SAN ANTONIO (UTSA)", title_style))
+                            story.append(Paragraph("DEPARTMENT OF EDUCATIONAL LEADERSHIP AND POLICY STUDIES (ELPS)<br/><b>Equimeritization Index (EI) — Executive Governance & Procurement Brief</b>", subtitle_style))
+                            story.append(Spacer(1, 4))
+                            
+                            story.append(Paragraph("1. Bottom-Line-Up-Front (BLUF) Executive Recommendation", heading_style))
+                            story.append(Paragraph(f"<b>Recommended Vendor Selection:</b> {recommended_winner}<br/><b>Strategic Rationale:</b> {rationale}", body_style))
+                            
+                            story.append(Paragraph("2. Comparative Benchmarking Scorecard", heading_style))
+                            table_data = [
+                                ['Metric Description', model_a_name[:18], model_b_name[:18]],
+                                ['Raw Overall Accuracy', f"{results_a['overall_accuracy']:.2%}", f"{results_b['overall_accuracy']:.2%}"],
+                                ['Max FNR Disparity Gap (B)', f"{results_a['max_fnr_gap']:.2%}", f"{results_b['max_fnr_gap']:.2%}"],
+                                ['Equity Penalty Applied', f"-{results_a['equity_penalty']:.2%}", f"-{results_b['equity_penalty']:.2%}"],
+                                ['Final Penalized EI Score', f"{results_a['final_ei_score']:.2%}", f"{results_b['final_ei_score']:.2%}"],
+                                ['Institutional Status', "PASSED" if is_compliant_a else "FAILED", "PASSED" if is_compliant_b else "FAILED"]
+                            ]
+                            t = Table(table_data, colWidths=[180, 175, 175])
+                            t.setStyle(TableStyle([
+                                ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1E3A8A')),
+                                ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+                                ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                                ('FONTSIZE', (0,0), (-1,-1), 8),
+                                ('BOTTOMPADDING', (0,0), (-1,0), 3),
+                                ('BACKGROUND', (0,1), (-1,-1), colors.HexColor('#F8FAFC')),
+                                ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1'))
+                            ]))
+                            story.append(t)
+                            story.append(Spacer(1, 4))
+                            story.append(Paragraph("3. Governance Implications & Next Steps", heading_style))
+                            story.append(Paragraph("Comparative analysis proves raw accuracy obscures error-rate disparities across marginalized cohorts. Procurement committees must condition contracts on maintaining EI scores above institutional thresholds.", body_style))
+                            
+                            doc.build(story)
+                            buffer.seek(0)
+                            return buffer
 
-                    st.download_button("📥 Download PDF Memorandum (.pdf)", generate_pdf_memo(), "Equimeritization_Executive_Brief.pdf", "application/pdf")
-    else:
-        st.info("Awaiting upload of both Vendor A and Vendor B test datasets for comparative benchmarking.")
-
-
+                        st.download_button("📥 Download PDF Memorandum (.pdf)", generate_pdf_memo(), "Equimeritization_Executive_Brief.pdf", "application/pdf")
+        else:
+            st.info("Awaiting upload of both Vendor A and Vendor B test datasets for comparative benchmarking.")
 # ==========================================
 # TABS NAVIGATION
 # ==========================================

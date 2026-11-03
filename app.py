@@ -282,6 +282,60 @@ def run_governance_audit(df, pred_col, lambda_weight, refusal_threshold):
 
 
 # ==========================================
+# NEW: VENDOR AUDIT HELPER FUNCTION
+# ==========================================
+def calculate_disparity_penalty(test_df, prediction_col, actual_col, group_cols, penalty_weight=0.15):
+    """
+    Calculates overall accuracy, subgroup error rates, and applies an equity 
+    disparity penalty based on False Negative Rate (FNR) gaps across protected groups.
+    """
+    results = {}
+    overall_accuracy = np.mean(test_df[prediction_col] == test_df[actual_col])
+    results['overall_accuracy'] = overall_accuracy
+    
+    subgroup_metrics = {}
+    max_fnr_gap = 0.0
+    
+    for group in group_cols:
+        unique_groups = test_df[group].unique()
+        group_stats = {}
+        fnr_list = []
+        
+        for g in unique_groups:
+            subset = test_df[test_df[group] == g]
+            if len(subset) > 0:
+                acc = np.mean(subset[prediction_col] == subset[actual_col])
+                actual_positives = subset[subset[actual_col] == 1]
+                if len(actual_positives) > 0:
+                    fnr = np.mean(actual_positives[prediction_col] != 1)
+                else:
+                    fnr = 0.0
+                
+                fnr_list.append(fnr)
+                group_stats[str(g)] = {
+                    'sample_size': len(subset),
+                    'accuracy': acc,
+                    'false_negative_rate': fnr
+                }
+        
+        if len(fnr_list) > 1:
+            group_gap = max(fnr_list) - min(fnr_list)
+            max_fnr_gap = max(max_fnr_gap, group_gap)
+            
+        subgroup_metrics[group] = group_stats
+        
+    equity_penalty = max_fnr_gap * penalty_weight
+    final_score = max(0.0, overall_accuracy - equity_penalty)
+    
+    results['max_fnr_gap'] = max_fnr_gap
+    results['equity_penalty'] = equity_penalty
+    results['final_ei_score'] = final_score
+    results['subgroup_breakdown'] = subgroup_metrics
+    
+    return results
+
+
+# ==========================================
 # SIDEBAR CONTROLS & SETTINGS
 # ==========================================
 st.sidebar.image("https://img.icons8.com/isometric-folders/100/scales.png", width=60)
@@ -327,7 +381,6 @@ if selected_cohorts:
 else:
     df = df_full.copy()
 
-# Run active Governance Audits
 m1_EI, m1_P, m1_B, m1_veto, df_m1_triage = run_governance_audit(df, 'Vendor_Legacy_Prob', lambda_weight, refusal_threshold)
 m2_EI, m2_P, m2_B, m2_veto, df_m2_triage = run_governance_audit(df, 'Equimeritization_Calibrated_Prob', lambda_weight, refusal_threshold)
 
@@ -375,9 +428,61 @@ st.divider()
 
 
 # ==========================================
-# WORKFLOW TABS (AUDITS PLACED JUST BEFORE USER GUIDE)
+# NEW: VENDOR AUDIT UI RENDER FUNCTION
 # ==========================================
-tab_main, tab_sweep, tab_ingest, tab_raw, tab_archive, tab_epi, tab_con, tab_imp, tab_gov, tab_guide = st.tabs([
+def render_vendor_audit_section():
+    """
+    Streamlit UI component for uploading and auditing third-party vendor predictions.
+    """
+    st.subheader("📦 Third-Party Vendor Black-Box Equity Audit")
+    st.markdown("Upload a CSV containing third-party vendor risk scores against historical student persistence outcomes to evaluate disparate impact and penalty thresholds.")
+    
+    uploaded_file = st.file_uploader("Upload Vendor Test CSV File", type=["csv"], key="vendor_csv_uploader")
+    
+    if uploaded_file is not None:
+        df_vendor = pd.read_csv(uploaded_file)
+        st.success(f"Successfully loaded vendor test file with {len(df_vendor):,} records.")
+        
+        with st.expander("Preview Uploaded Vendor Dataset"):
+            st.dataframe(df_vendor.head(), use_container_width=True)
+            
+        st.markdown("### Configuration & Column Mapping")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            pred_col = st.selectbox("Vendor Prediction Column", df_vendor.columns, key="vendor_pred_col")
+        with col2:
+            act_col = st.selectbox("Actual Outcome Column (Ground Truth)", df_vendor.columns, key="vendor_act_col")
+        with col3:
+            default_groups = [col for col in ['Intersectional_Cohort', 'First_Gen', 'Pell_Recipient', 'URM_Status'] if col in df_vendor.columns]
+            group_cols = st.multiselect("Demographic Pillars for Disparity Check", df_vendor.columns, default=default_groups, key="vendor_group_cols")
+            
+        if st.button("Run Vendor Equity Audit", type="primary"):
+            if not group_cols:
+                st.error("Please select at least one demographic pillar for auditing.")
+            else:
+                with st.spinner("Calculating error rates and equity penalties..."):
+                    audit_results = calculate_disparity_penalty(df_vendor, pred_col, act_col, group_cols)
+                    
+                st.divider()
+                st.markdown("### Vendor Audit Results & Compliance Scorecard")
+                
+                m1, m2, m3 = st.columns(3)
+                m1.metric("Raw Overall Accuracy", f"{audit_results['overall_accuracy']:.2%}")
+                m2.metric("Max Disparity Gap (FNR)", f"{audit_results['max_fnr_gap']:.2%}")
+                m3.metric("Final EI Score (Post-Penalty)", f"{audit_results['final_ei_score']:.2%}", 
+                          delta=f"-{audit_results['equity_penalty']:.2%}", delta_color="inverse")
+                
+                with st.expander("Detailed Subgroup Breakdown JSON"):
+                    st.json(audit_results['subgroup_breakdown'])
+    else:
+        st.info("Awaiting vendor dataset upload. Ensure your CSV includes prediction probabilities, ground truth outcomes, and demographic attributes.")
+
+
+# ==========================================
+# WORKFLOW TABS (UPDATED WITH VENDOR AUDIT)
+# ==========================================
+tab_main, tab_sweep, tab_ingest, tab_raw, tab_archive, tab_epi, tab_con, tab_imp, tab_gov, tab_vendor, tab_guide = st.tabs([
     "📊 Executive Summary",
     "📈 Policy Sensitivity",
     "📁 Data Ingestion",
@@ -387,6 +492,7 @@ tab_main, tab_sweep, tab_ingest, tab_raw, tab_archive, tab_epi, tab_con, tab_imp
     "📐 2. Construct Audit",
     "⚖️ 3. Impact Audit",
     "🛡️ 4. Governance & Capacity",
+    "📦 Vendor Audit",
     "📖 User Guide"
 ])
 
@@ -422,7 +528,6 @@ with tab_main:
 
     st.divider()
     
-    # Executive Policy Memo Printout Capability
     st.subheader("🖨️ Executive Policy Memo & Audit Summary Report")
     st.markdown("Generate and print/download an executive report for institutional leadership and board reviews.")
     
@@ -444,13 +549,13 @@ AUDIT PERFORMANCE RESULTS:
 --------------------------------------------------------------------------------
 1. Vendor Proprietary Model:
    - Predictive Performance (ROC-AUC / P): {m1_P:.4f}
-   - Disparity Penalty (FNR Gap / B):       {m1_B:.4f}
+   - Disparity Penalty (FNR Gap / B):        {m1_B:.4f}
    - Equimeritization Index Score (EI):      {m1_EI:.4f}
    - Audit Status:                          {"VETOED / CONTRACT REFUSAL" if m1_veto else "APPROVED FOR DEPLOYMENT"}
 
 2. Equimeritization Calibrated Model:
    - Predictive Performance (ROC-AUC / P): {m2_P:.4f}
-   - Disparity Penalty (FNR Gap / B):       {m2_B:.4f}
+   - Disparity Penalty (FNR Gap / B):        {m2_B:.4f}
    - Equimeritization Index Score (EI):      {m2_EI:.4f}
    - Audit Status:                          {"VETOED / CONTRACT REFUSAL" if m2_veto else "APPROVED FOR DEPLOYMENT"}
 
@@ -641,7 +746,13 @@ with tab_gov:
         st.plotly_chart(fig_triage, use_container_width=True)
 
 # ------------------------------------------
-# TAB 9: USER GUIDE (PLACED LAST)
+# TAB 9: VENDOR AUDIT (NEW MODULE)
+# ------------------------------------------
+with tab_vendor:
+    render_vendor_audit_section()
+
+# ------------------------------------------
+# TAB 10: USER GUIDE
 # ------------------------------------------
 with tab_guide:
     st.subheader("📖 Equimeritization Index ($EI$) Suite - Official User & Technical Operations Guide")

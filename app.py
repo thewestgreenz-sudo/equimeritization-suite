@@ -428,11 +428,12 @@ st.divider()
 
 
 # ==========================================
-# NEW: VENDOR AUDIT UI RENDER FUNCTION
+# VENDOR AUDIT UI RENDER FUNCTION (WITH BADGES & EXPORT)
 # ==========================================
 def render_vendor_audit_section():
     """
-    Streamlit UI component for uploading and auditing third-party vendor predictions.
+    Streamlit UI component for uploading and auditing third-party vendor predictions,
+    complete with compliance pass/fail status badges and CSV export functionality.
     """
     st.subheader("📦 Third-Party Vendor Black-Box Equity Audit")
     st.markdown("Upload a CSV containing third-party vendor risk scores against historical student persistence outcomes to evaluate disparate impact and penalty thresholds.")
@@ -467,6 +468,15 @@ def render_vendor_audit_section():
                 st.divider()
                 st.markdown("### Vendor Audit Results & Compliance Scorecard")
                 
+                # Institutional Compliance Logic
+                # For example: FNR gap <= 15% and final EI score >= 0.65 passes institutional threshold
+                is_compliant = audit_results['max_fnr_gap'] <= 0.15 and audit_results['final_ei_score'] >= 0.65
+                
+                if is_compliant:
+                    st.success("🟢 **INSTITUTIONAL COMPLIANCE STATUS: PASSED** — Vendor model meets acceptable equity and error-parity thresholds.")
+                else:
+                    st.error("🔴 **INSTITUTIONAL COMPLIANCE STATUS: FAILED / FLAGGED** — Vendor model exhibits excessive disparate error rates. Contract review recommended.")
+                
                 m1, m2, m3 = st.columns(3)
                 m1.metric("Raw Overall Accuracy", f"{audit_results['overall_accuracy']:.2%}")
                 m2.metric("Max Disparity Gap (FNR)", f"{audit_results['max_fnr_gap']:.2%}")
@@ -475,6 +485,27 @@ def render_vendor_audit_section():
                 
                 with st.expander("Detailed Subgroup Breakdown JSON"):
                     st.json(audit_results['subgroup_breakdown'])
+                    
+                # Export Vendor Audit Summary to CSV
+                export_summary_df = pd.DataFrame({
+                    'Metric': ['Overall Accuracy', 'Max FNR Disparity Gap', 'Equity Penalty Applied', 'Final EI Score', 'Compliance Status'],
+                    'Value': [
+                        f"{audit_results['overall_accuracy']:.4f}",
+                        f"{audit_results['max_fnr_gap']:.4f}",
+                        f"{audit_results['equity_penalty']:.4f}",
+                        f"{audit_results['final_ei_score']:.4f}",
+                        "PASSED" if is_compliant else "FAILED"
+                    ]
+                })
+                
+                csv_export_data = export_summary_df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📥 Download Vendor Audit Scorecard (CSV)",
+                    data=csv_export_data,
+                    file_name="vendor_equity_audit_scorecard.csv",
+                    mime="text/csv",
+                    help="Download the summary compliance scorecard for board reviews or vendor contract negotiations."
+                )
     else:
         st.info("Awaiting vendor dataset upload. Ensure your CSV includes prediction probabilities, ground truth outcomes, and demographic attributes.")
 

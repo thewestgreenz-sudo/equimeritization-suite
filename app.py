@@ -428,12 +428,15 @@ st.divider()
 
 
 # ==========================================
-# VENDOR AUDIT UI RENDER FUNCTION (WITH BADGES & EXPORT)
+# VENDOR AUDIT UI RENDER FUNCTION (WITH FILTER & MEMO GENERATOR)
 # ==========================================
 def render_vendor_audit_section():
     """
-    Streamlit UI component for uploading and auditing third-party vendor predictions,
-    complete with compliance pass/fail status badges and CSV export functionality.
+    Streamlit UI component for auditing third-party vendor predictions, featuring:
+    1. Dynamic Pass/Fail Compliance Badges
+    2. Interactive Subgroup Disparity Filter
+    3. Exportable Scorecard CSV
+    4. Automated Vendor Policy Memo Generator
     """
     st.subheader("📦 Third-Party Vendor Black-Box Equity Audit")
     st.markdown("Upload a CSV containing third-party vendor risk scores against historical student persistence outcomes to evaluate disparate impact and penalty thresholds.")
@@ -468,8 +471,7 @@ def render_vendor_audit_section():
                 st.divider()
                 st.markdown("### Vendor Audit Results & Compliance Scorecard")
                 
-                # Institutional Compliance Logic
-                # For example: FNR gap <= 15% and final EI score >= 0.65 passes institutional threshold
+                # Compliance Status Threshold Check (FNR Gap <= 0.15 and Final EI Score >= 0.65)
                 is_compliant = audit_results['max_fnr_gap'] <= 0.15 and audit_results['final_ei_score'] >= 0.65
                 
                 if is_compliant:
@@ -483,29 +485,90 @@ def render_vendor_audit_section():
                 m3.metric("Final EI Score (Post-Penalty)", f"{audit_results['final_ei_score']:.2%}", 
                           delta=f"-{audit_results['equity_penalty']:.2%}", delta_color="inverse")
                 
-                with st.expander("Detailed Subgroup Breakdown JSON"):
-                    st.json(audit_results['subgroup_breakdown'])
-                    
-                # Export Vendor Audit Summary to CSV
-                export_summary_df = pd.DataFrame({
-                    'Metric': ['Overall Accuracy', 'Max FNR Disparity Gap', 'Equity Penalty Applied', 'Final EI Score', 'Compliance Status'],
-                    'Value': [
-                        f"{audit_results['overall_accuracy']:.4f}",
-                        f"{audit_results['max_fnr_gap']:.4f}",
-                        f"{audit_results['equity_penalty']:.4f}",
-                        f"{audit_results['final_ei_score']:.4f}",
-                        "PASSED" if is_compliant else "FAILED"
-                    ]
-                })
+                # --- FEATURE 1: INTERACTIVE SUBGROUP DISPARITY DRILL-DOWN ---
+                st.divider()
+                st.markdown("### 🔍 Interactive Demographic Subgroup Drill-Down")
+                selected_pillar = st.selectbox("Select Demographic Pillar to Inspect", group_cols, key="drilldown_pillar")
                 
-                csv_export_data = export_summary_df.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="📥 Download Vendor Audit Scorecard (CSV)",
-                    data=csv_export_data,
-                    file_name="vendor_equity_audit_scorecard.csv",
-                    mime="text/csv",
-                    help="Download the summary compliance scorecard for board reviews or vendor contract negotiations."
-                )
+                pillar_stats = audit_results['subgroup_breakdown'].get(selected_pillar, {})
+                pillar_rows = []
+                for grp_val, metrics in pillar_stats.items():
+                    pillar_rows.append({
+                        'Subgroup': f"{selected_pillar}: {grp_val}",
+                        'Sample Size': metrics['sample_size'],
+                        'Accuracy': f"{metrics['accuracy']:.2%}",
+                        'False Negative Rate (FNR)': f"{metrics['false_negative_rate']:.2%}"
+                    })
+                
+                df_pillar = pd.DataFrame(pillar_rows)
+                st.dataframe(df_pillar, use_container_width=True)
+                
+                # --- FEATURE 2: EXPORTS & AUTOMATED MEMO GENERATION ---
+                st.divider()
+                st.markdown("### 🖨️ Export Audit Deliverables")
+                
+                col_exp1, col_exp2 = st.columns(2)
+                
+                with col_exp1:
+                    # Scorecard CSV Export
+                    export_summary_df = pd.DataFrame({
+                        'Metric': ['Overall Accuracy', 'Max FNR Disparity Gap', 'Equity Penalty Applied', 'Final EI Score', 'Compliance Status'],
+                        'Value': [
+                            f"{audit_results['overall_accuracy']:.4f}",
+                            f"{audit_results['max_fnr_gap']:.4f}",
+                            f"{audit_results['equity_penalty']:.4f}",
+                            f"{audit_results['final_ei_score']:.4f}",
+                            "PASSED" if is_compliant else "FAILED"
+                        ]
+                    })
+                    
+                    csv_export_data = export_summary_df.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label="📊 Download Scorecard Table (CSV)",
+                        data=csv_export_data,
+                        file_name="vendor_equity_audit_scorecard.csv",
+                        mime="text/csv",
+                        help="Download summary metrics as a CSV table for committee presentations."
+                    )
+                    
+                with col_exp2:
+                    # Automated Vendor Audit Policy Memo Generation
+                    vendor_memo_text = f"""================================================================================
+THIRD-PARTY VENDOR ALGORITHMIC EQUITY AUDIT MEMORANDUM
+================================================================================
+Author / Lead Developer: Steven Westgreen
+Institutional Context: UTSA Educational Leadership & Policy Studies
+Audit Timestamp: {pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")}
+Total Records Evaluated: {len(df_vendor):,} student records
+
+COMPLIANCE VERDICT:
+--------------------------------------------------------------------------------
+Institutional Status: {"APPROVED / COMPLIANT" if is_compliant else "FLAGGED / CONTRACT VETO RECOMMENDED"}
+Disparity Penalty Weight Applied: 0.15
+
+AUDIT METRICS SUMMARY:
+--------------------------------------------------------------------------------
+- Raw Vendor Predictive Accuracy: {audit_results['overall_accuracy']:.2%}
+- Maximum False Negative Rate (FNR) Disparity Gap: {audit_results['max_fnr_gap']:.2%}
+- Applied Equity Disparity Penalty: -{audit_results['equity_penalty']:.2%}
+- Final Equimeritization Score (EI): {audit_results['final_ei_score']:.2%}
+
+EVALUATED DEMOGRAPHIC PILLARS:
+--------------------------------------------------------------------------------
+Pillars Audited: {", ".join(group_cols)}
+
+RECOMMENDATION:
+--------------------------------------------------------------------------------
+{"The vendor model operates within acceptable equity tolerance bounds." if is_compliant else "The vendor model demonstrates excessive error-rate disparities across demographic cohorts. Contract renewal should be paused until algorithmic re-calibration or re-weighting is performed."}
+================================================================================
+"""
+                    st.download_button(
+                        label="📄 Download Vendor Policy Briefing Memo (TXT)",
+                        data=vendor_memo_text,
+                        file_name="Vendor_Equity_Audit_Policy_Memo.txt",
+                        mime="text/plain",
+                        help="Download an official executive memo for institutional leadership or procurement reviews."
+                    )
     else:
         st.info("Awaiting vendor dataset upload. Ensure your CSV includes prediction probabilities, ground truth outcomes, and demographic attributes.")
 

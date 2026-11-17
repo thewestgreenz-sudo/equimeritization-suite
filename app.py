@@ -255,8 +255,8 @@ def calculate_disparity_penalty(test_df, prediction_col, actual_col, group_cols,
 # ==========================================
 # SIDEBAR CONTROLS
 # ==========================================
-st.sidebar.image("ei_logo.png", width=200) 
-st.sidebar.title("Governance Parameters")
+st.sidebar.image("ei_logo.png", width=260) 
+st.sidebar.title("Governance Parameters") 
 
 lambda_weight = st.sidebar.slider("Policy Calibration Weight (λ)", 0.0, 3.0, 1.5, 0.1)
 refusal_threshold = st.sidebar.slider("Minimum Approval Threshold (EI)", 0.40, 0.90, 0.70, 0.05)

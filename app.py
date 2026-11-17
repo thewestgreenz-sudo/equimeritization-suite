@@ -17,7 +17,7 @@ from reportlab.lib import colors
 # ==========================================
 st.set_page_config(
     page_title="Equimeritization Index (EI) Executive Audit Suite",
-    page_icon="⚖️",
+    page_icon="ei_logo.png",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -255,8 +255,7 @@ def calculate_disparity_penalty(test_df, prediction_col, actual_col, group_cols,
 # ==========================================
 # SIDEBAR CONTROLS
 # ==========================================
-st.sidebar.image("https://img.icons8.com/isometric-folders/100/scales.png", width=60)
-st.sidebar.title("Governance Parameters")
+st.sidebar.image("ei_logo.png", width=120) st.sidebar.title("Governance Parameters")
 
 lambda_weight = st.sidebar.slider("Policy Calibration Weight (λ)", 0.0, 3.0, 1.5, 0.1)
 refusal_threshold = st.sidebar.slider("Minimum Approval Threshold (EI)", 0.40, 0.90, 0.70, 0.05)
@@ -847,6 +846,7 @@ with tab_guide:
     * **Pillar 3: Impact Audit:** Measures adverse impact ratios and FNR gaps.
     * **Pillar 4: Governance & Capacity Simulator:** Maps predictions into human oversight tiers and tests advising workload capacity.
       
+      
     ### 3. Worked Example: Balancing Accuracy and Fairness 
     The EI balances **accuracy** and **fairness** when evaluating a model, for example an admissions model. 
   
@@ -900,5 +900,5 @@ with tab_guide:
   
     #### The Main Takeaway 
     **λ transforms fairness from a philosophical discussion into a policy choice** that can be explicitly encoded in the model evaluation process. By increasing or decreasing λ, stakeholders can transparently decide how much bias they are willing to tolerate in exchange for higher predictive accuracy. 
- 
+  
     """)

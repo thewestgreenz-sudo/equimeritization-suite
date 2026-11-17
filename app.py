@@ -846,4 +846,59 @@ with tab_guide:
     * **Pillar 2: Construct Audit:** Tests whether behavioral proxy variables measure engagement consistently across subgroups.
     * **Pillar 3: Impact Audit:** Measures adverse impact ratios and FNR gaps.
     * **Pillar 4: Governance & Capacity Simulator:** Maps predictions into human oversight tiers and tests advising workload capacity.
+      
+    ### 3. Worked Example: Balancing Accuracy and Fairness 
+    The EI balances **accuracy** and **fairness** when evaluating a model, for example an admissions model. 
+  
+    **Key Formula:** EI = P - (λ × B) 
+    * **P** = Performance (overall accuracy of the model) 
+    * **B** = Bias penalty (how unfair the model is across different groups) 
+    * **λ (lambda)** = Policy Calibration Weight, which sets how much the institution cares about fairness relative to accuracy 
+  
+    Think of λ as a **fairness dial**: 
+    * If λ = 0, fairness is ignored and only accuracy matters. 
+    * If λ is large, unfairness is strongly punished. 
+    * Different institutions can choose different λ values based on their values and policies. 
+  
+    #### The Example 
+    Two admissions models are compared: 
+  
+    | Model | Accuracy (P) | Bias Penalty (B) | 
+    |---|---|---| 
+    | A | 0.92 | 0.25 | 
+    | B | 0.88 | 0.04 | 
+  
+    At first glance, **Model A looks better** because its accuracy is higher (92% vs. 88%). However, Model A is also much more biased (0.25 vs. 0.04). The institution chooses λ = 0.50, meaning each unit of bias reduces the final score by half that amount. 
+  
+    #### Calculate Model A 
+    * Bias deduction: 0.50 × 0.25 = 0.125 
+    * EI: 0.92 - 0.125 = 0.795 
+  
+    #### Calculate Model B 
+    * Bias deduction: 0.50 × 0.04 = 0.020 
+    * EI: 0.88 - 0.020 = 0.860 
+  
+    #### Interpretation 
+    Although Model A is **more accurate**, its unfairness is severe enough that its final EI score is lower than Model B's: 
+  
+    | Model | EI Score | 
+    |---|---| 
+    | A | 0.795 | 
+    | B | 0.860 | 
+  
+    As a result, the framework selects **Model B**. 
+  
+    #### Why This Matters 
+    Without the bias penalty, the university would probably choose the 92% accurate model. The EI framework argues that a model that is slightly less accurate but substantially fairer may be preferable to a highly accurate model that systematically disadvantages certain student groups. In other words, the framework treats **equity as a quantifiable institutional value**, not merely an afterthought. 
+  
+    #### Simple Analogy 
+    Imagine choosing between two professors: 
+    * Professor A gives highly accurate grades but is known to grade one group of students much harsher than others. 
+    * Professor B is slightly less consistent overall but treats all student groups much more equally. 
+  
+    The parameter **λ** reflects how important equal treatment is to the university. The higher λ is, the more the university is willing to sacrifice a little efficiency or accuracy to ensure fairness. 
+  
+    #### The Main Takeaway 
+    **λ transforms fairness from a philosophical discussion into a policy choice** that can be explicitly encoded in the model evaluation process. By increasing or decreasing λ, stakeholders can transparently decide how much bias they are willing to tolerate in exchange for higher predictive accuracy. 
+ 
     """)

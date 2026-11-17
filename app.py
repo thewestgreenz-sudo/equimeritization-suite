@@ -255,7 +255,7 @@ def calculate_disparity_penalty(test_df, prediction_col, actual_col, group_cols,
 # ==========================================
 # SIDEBAR CONTROLS
 # ==========================================
-st.sidebar.image("ei_logo.png", width=120) 
+st.sidebar.image("ei_logo.png", width=200) 
 st.sidebar.title("Governance Parameters")
 
 lambda_weight = st.sidebar.slider("Policy Calibration Weight (λ)", 0.0, 3.0, 1.5, 0.1)
